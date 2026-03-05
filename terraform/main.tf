@@ -10,7 +10,7 @@ terraform {
     resource_group_name  = "rg-terraform-state"
     storage_account_name = "tfstate122436"
     container_name       = "tfstate"
-    key                  = "dev/terraform.tfstate"
+    key                  = "terraform.tfstate"
     use_azuread_auth     = true
   }
 }
