@@ -1,0 +1,39 @@
+terraform {
+  required_providers {
+    azurerm = {
+      source  = "hashicorp/azurerm"
+      version = "~> 3.0"
+    }
+  }
+
+  backend "azurerm" {
+    resource_group_name  = "rg-terraform-state"
+    storage_account_name = "tfstate122436"
+    container_name       = "tfstate"
+    key                  = "dev/terraform.tfstate"
+    use_azuread_auth     = true
+  }
+}
+
+provider "azurerm" {
+  features {}
+}
+
+module "resource_group" {
+  source   = "./modules/resource-group"
+  name     = "rg-my-infrastructure-mmd-${var.environment}"
+  location = var.location
+  tags     = { environment = var.environment }
+}
+
+module "container_apps" {
+  source              = "./modules/container-apps"
+  name_suffix         = "mmd-${var.environment}"
+  location            = var.location
+  resource_group_name = module.resource_group.name
+
+  acr_server      = var.acr_server
+  acr_resource_id = var.acr_resource_id
+  db_name         = var.db_name
+  jwt_secret      = var.jwt_secret
+}

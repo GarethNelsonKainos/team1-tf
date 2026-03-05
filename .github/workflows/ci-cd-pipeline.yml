@@ -1,0 +1,195 @@
+name: CI Pipeline
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  test:
+    name: "Test & Quality Checks"
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Validate docker-compose
+        run: |
+          touch .env
+          docker compose -f docker-compose.yml config > /dev/null
+
+  build:
+    name: "Build Image"
+    runs-on: ubuntu-latest
+    needs: test
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Login to ACR
+        uses: docker/login-action@v3
+        with:
+          registry: academyacrj3r5dv.azurecr.io
+          username: ${{ secrets.AZURE_CLIENT_ID }}
+          password: ${{ secrets.AZURE_CLIENT_SECRET }}
+
+      - name: Pull backend image
+        run: docker pull --platform linux/amd64 academyacrj3r5dv.azurecr.io/team1-back-app-backend:F
+
+      - name: Pull frontend image
+        run: docker pull --platform linux/amd64 academyacrj3r5dv.azurecr.io/team1-front-app-frontend:F
+
+      - name: Tag images with short SHA
+        if: github.event_name == 'push'
+        run: |
+          SHORT_SHA=${GITHUB_SHA::7}
+          docker tag academyacrj3r5dv.azurecr.io/team1-back-app-backend:F academyacrj3r5dv.azurecr.io/team1-back-app-backend:sha-${SHORT_SHA}
+          docker tag academyacrj3r5dv.azurecr.io/team1-front-app-frontend:F academyacrj3r5dv.azurecr.io/team1-front-app-frontend:sha-${SHORT_SHA}
+
+      - name: Tag images with PR number
+        if: github.event_name == 'pull_request'
+        run: |
+          docker tag academyacrj3r5dv.azurecr.io/team1-back-app-backend:F academyacrj3r5dv.azurecr.io/team1-back-app-backend:pr-${{ github.event.number }}
+          docker tag academyacrj3r5dv.azurecr.io/team1-front-app-frontend:F academyacrj3r5dv.azurecr.io/team1-front-app-frontend:pr-${{ github.event.number }}
+
+  push-to-acr:
+    name: "Push to ACR"
+    runs-on: ubuntu-latest
+    needs: build
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    steps:
+      - name: Login to ACR
+        uses: docker/login-action@v3
+        with:
+          registry: academyacrj3r5dv.azurecr.io
+          username: ${{ secrets.AZURE_CLIENT_ID }}
+          password: ${{ secrets.AZURE_CLIENT_SECRET }}
+
+      - name: Push backend image
+        run: |
+          SHORT_SHA=${GITHUB_SHA::7}
+          docker pull --platform linux/amd64 academyacrj3r5dv.azurecr.io/team1-back-app-backend:F
+          docker tag academyacrj3r5dv.azurecr.io/team1-back-app-backend:F academyacrj3r5dv.azurecr.io/team1-back-app-backend:latest
+          docker tag academyacrj3r5dv.azurecr.io/team1-back-app-backend:F academyacrj3r5dv.azurecr.io/team1-back-app-backend:sha-${SHORT_SHA}
+          docker push academyacrj3r5dv.azurecr.io/team1-back-app-backend:latest
+          docker push academyacrj3r5dv.azurecr.io/team1-back-app-backend:sha-${SHORT_SHA}
+
+      - name: Push frontend image
+        run: |
+          SHORT_SHA=${GITHUB_SHA::7}
+          docker pull --platform linux/amd64 academyacrj3r5dv.azurecr.io/team1-front-app-frontend:F
+          docker tag academyacrj3r5dv.azurecr.io/team1-front-app-frontend:F academyacrj3r5dv.azurecr.io/team1-front-app-frontend:latest
+          docker tag academyacrj3r5dv.azurecr.io/team1-front-app-frontend:F academyacrj3r5dv.azurecr.io/team1-front-app-frontend:sha-${SHORT_SHA}
+          docker push academyacrj3r5dv.azurecr.io/team1-front-app-frontend:latest
+          docker push academyacrj3r5dv.azurecr.io/team1-front-app-frontend:sha-${SHORT_SHA}
+
+      - name: Azure CLI login
+        run: az login --service-principal -u ${{ secrets.AZURE_CLIENT_ID }} -p ${{ secrets.AZURE_CLIENT_SECRET }} --tenant ${{ secrets.AZURE_TENANT_ID }}
+
+      - name: Verify pushed tags
+        run: |
+          az acr repository show-tags --name academyacrj3r5dv --repository team1-back-app-backend --output table
+          az acr repository show-tags --name academyacrj3r5dv --repository team1-front-app-frontend --output table
+
+  push-pr-tag:
+    name: "Push PR Tag to ACR"
+    runs-on: ubuntu-latest
+    needs: build
+    if: github.event_name == 'pull_request'
+    steps:
+      - name: Login to ACR
+        uses: docker/login-action@v3
+        with:
+          registry: academyacrj3r5dv.azurecr.io
+          username: ${{ secrets.AZURE_CLIENT_ID }}
+          password: ${{ secrets.AZURE_CLIENT_SECRET }}
+
+      - name: Push backend PR tag
+        run: |
+          docker pull --platform linux/amd64 academyacrj3r5dv.azurecr.io/team1-back-app-backend:F
+          docker tag academyacrj3r5dv.azurecr.io/team1-back-app-backend:F academyacrj3r5dv.azurecr.io/team1-back-app-backend:pr-${{ github.event.number }}
+          docker push academyacrj3r5dv.azurecr.io/team1-back-app-backend:pr-${{ github.event.number }}
+
+      - name: Push frontend PR tag
+        run: |
+          docker pull --platform linux/amd64 academyacrj3r5dv.azurecr.io/team1-front-app-frontend:F
+          docker tag academyacrj3r5dv.azurecr.io/team1-front-app-frontend:F academyacrj3r5dv.azurecr.io/team1-front-app-frontend:pr-${{ github.event.number }}
+          docker push academyacrj3r5dv.azurecr.io/team1-front-app-frontend:pr-${{ github.event.number }}
+
+      - name: Azure CLI login
+        run: az login --service-principal -u ${{ secrets.AZURE_CLIENT_ID }} -p ${{ secrets.AZURE_CLIENT_SECRET }} --tenant ${{ secrets.AZURE_TENANT_ID }}
+
+      - name: Verify PR tags
+        run: |
+          az acr repository show-tags --name academyacrj3r5dv --repository team1-back-app-backend --output table
+          az acr repository show-tags --name academyacrj3r5dv --repository team1-front-app-frontend --output table
+
+  terraform-plan:
+    name: "Terraform Plan"
+    runs-on: ubuntu-latest
+    needs: build
+    env:
+      TF_VAR_environment: dev
+      ARM_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+      ARM_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
+      ARM_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+      ARM_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+      TF_VAR_acr_resource_id: ${{ secrets.ACR_RESOURCE_ID }}
+      TF_VAR_jwt_secret: ${{ secrets.JWT_SECRET }}
+    defaults:
+      run:
+        working-directory: infrastructure/
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+
+      - name: Terraform Init
+        run: terraform init
+
+      - name: Terraform Validate
+        run: terraform validate
+
+      - name: Terraform Plan
+        run: terraform plan -out=tfplan
+
+      - name: Upload plan artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: tfplan
+          path: infrastructure/tfplan
+
+  terraform-apply:
+    name: "Terraform Apply"
+    runs-on: ubuntu-latest
+    needs: push-to-acr
+    env:
+      TF_VAR_environment: dev
+      ARM_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+      ARM_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
+      ARM_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+      ARM_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+      TF_VAR_acr_resource_id: ${{ secrets.ACR_RESOURCE_ID }}
+      TF_VAR_jwt_secret: ${{ secrets.JWT_SECRET }}
+    defaults:
+      run:
+        working-directory: infrastructure/
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+
+      - name: Terraform Init
+        run: terraform init
+
+      - name: Download plan artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: tfplan
+          path: infrastructure/
+
+      - name: Terraform Apply
+        run: terraform apply -auto-approve tfplan
