@@ -4,8 +4,7 @@
 # Triggered by:
 #   1. Push to main        – applies with :latest image tags
 #   2. Pull request        – plan only (no apply)
-#   3. repository_dispatch – from back-app or front-app repos
-#      with client_payload containing image tags
+#   3. workflow_dispatch   – manual trigger from Actions UI
 #
 # Required GitHub Secrets:
 #   AZURE_CLIENT_ID       – Service principal app (client) ID
@@ -22,8 +21,7 @@ on:
     branches: [main]
   pull_request:
     branches: [main]
-  repository_dispatch:
-    types: [deploy]
+  workflow_dispatch:
 
 jobs:
   terraform:
@@ -40,10 +38,9 @@ jobs:
       TF_VAR_project: team1-ethan-campbell
       TF_VAR_location: uksouth
       TF_VAR_environment: dev
-      # Image tags: use dispatch payload when available, otherwise :latest
-      TF_VAR_backend_image: ${{ github.event.client_payload.backend_image || 'ethan-campbell/team1-back-app:latest' }}
-      TF_VAR_frontend_image: ${{ github.event.client_payload.frontend_image || 'ethan-campbell/team1-front-app:latest' }}
-      TF_VAR_postgres_image: ${{ github.event.client_payload.postgres_image || 'ethan-campbell/team1-postgres-app:latest' }}
+      TF_VAR_backend_image: ethan-campbell/team1-back-app:latest
+      TF_VAR_frontend_image: ethan-campbell/team1-front-app:latest
+      TF_VAR_postgres_image: ethan-campbell/team1-postgres-app:latest
 
     steps:
     - uses: actions/checkout@v4
