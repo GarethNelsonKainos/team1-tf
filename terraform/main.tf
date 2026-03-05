@@ -25,15 +25,3 @@ module "resource_group" {
   location = var.location
   tags     = { environment = var.environment }
 }
-
-module "container_apps" {
-  source              = "./modules/container-apps"
-  name_suffix         = "mmd-${var.environment}"
-  location            = var.location
-  resource_group_name = module.resource_group.name
-
-  acr_server      = var.acr_server
-  acr_resource_id = var.acr_resource_id
-  db_name         = var.db_name
-  jwt_secret      = var.jwt_secret
-}

@@ -12,8 +12,3 @@ output "resource_group_location" {
   description = "The location of the resource group"
   value       = module.resource_group.location
 }
-
-output "frontend_url" {
-  description = "Public URL of the frontend"
-  value       = module.container_apps.frontend_url
-}
