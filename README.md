@@ -13,7 +13,7 @@ Manages infrastructure for both `team1-front-app` and `team1-back-app` in a sing
 | `terraform.tfvars` | Your local variable values — **gitignored, never commit this** |
 
 ## Setup
-
+ 
 1. Copy the example vars and fill in your values:
 ```bash
 cp terraform.tfvars.example terraform.tfvars
